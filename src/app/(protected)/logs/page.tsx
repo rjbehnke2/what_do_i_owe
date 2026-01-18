@@ -35,6 +35,10 @@ interface Account {
   name: string;
 }
 
+interface UserInfo {
+  defaultAccountId: string | null;
+}
+
 type LogEntry = (Purchase & { type: "purchase" }) | (Payment & { type: "payment" });
 
 export default function LogsPage() {
@@ -44,6 +48,7 @@ export default function LogsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // Filters
   const [showFilters, setShowFilters] = useState(false);
@@ -52,23 +57,42 @@ export default function LogsPage() {
   const [hidePaidPurchases, setHidePaidPurchases] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
 
-  // Fetch accounts
+  // Fetch accounts and user info on initial load
   useEffect(() => {
-    const fetchAccounts = async () => {
+    const initializePage = async () => {
       try {
-        const response = await fetch("/api/accounts");
-        if (response.ok) {
-          const data = await response.json();
-          setAccounts(data);
-          if (data.length > 0) {
-            setSelectedAccountId(data[0].id);
-          }
+        const [accountsRes, userRes] = await Promise.all([
+          fetch("/api/accounts"),
+          fetch("/api/user"),
+        ]);
+
+        let accountsData: Account[] = [];
+        let userData: UserInfo | null = null;
+
+        if (accountsRes.ok) {
+          accountsData = await accountsRes.json();
+          setAccounts(accountsData);
+        }
+
+        if (userRes.ok) {
+          userData = await userRes.json();
+        }
+
+        // Set initial account: prefer default, fallback to first
+        if (accountsData.length > 0) {
+          const defaultAccount = userData?.defaultAccountId
+            ? accountsData.find((a) => a.id === userData.defaultAccountId)
+            : null;
+          setSelectedAccountId(defaultAccount?.id || accountsData[0].id);
         }
       } catch (error) {
-        console.error("Error fetching accounts:", error);
+        console.error("Error initializing page:", error);
+      } finally {
+        setInitialLoadDone(true);
       }
     };
-    fetchAccounts();
+
+    initializePage();
   }, []);
 
   // Fetch logs when account changes
