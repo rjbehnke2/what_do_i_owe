@@ -18,12 +18,17 @@ interface AccountWithStats {
   paymentCount: number;
 }
 
+interface UserInfo {
+  defaultAccountId: string | null;
+}
+
 export default function DashboardPage() {
   const [accounts, setAccounts] = useState<AccountWithStats[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<AccountWithStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOweModal, setShowOweModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -31,25 +36,60 @@ export default function DashboardPage() {
       if (response.ok) {
         const data = await response.json();
         setAccounts(data);
-        if (data.length > 0 && !selectedAccount) {
-          setSelectedAccount(data[0]);
-        } else if (selectedAccount) {
+        if (selectedAccount) {
           // Update selected account with fresh data
           const updated = data.find((a: AccountWithStats) => a.id === selectedAccount.id);
           if (updated) {
             setSelectedAccount(updated);
           }
         }
+        return data;
       }
     } catch (error) {
       console.error("Error fetching accounts:", error);
     } finally {
       setLoading(false);
     }
+    return [];
   }, [selectedAccount]);
 
+  // Initial load: fetch accounts and user info, then set default account
   useEffect(() => {
-    fetchAccounts();
+    const initializeDashboard = async () => {
+      try {
+        const [accountsRes, userRes] = await Promise.all([
+          fetch("/api/accounts"),
+          fetch("/api/user"),
+        ]);
+
+        let accountsData: AccountWithStats[] = [];
+        let userData: UserInfo | null = null;
+
+        if (accountsRes.ok) {
+          accountsData = await accountsRes.json();
+          setAccounts(accountsData);
+        }
+
+        if (userRes.ok) {
+          userData = await userRes.json();
+        }
+
+        // Set initial account: prefer default, fallback to first
+        if (accountsData.length > 0) {
+          const defaultAccount = userData?.defaultAccountId
+            ? accountsData.find((a) => a.id === userData.defaultAccountId)
+            : null;
+          setSelectedAccount(defaultAccount || accountsData[0]);
+        }
+      } catch (error) {
+        console.error("Error initializing dashboard:", error);
+      } finally {
+        setLoading(false);
+        setInitialLoadDone(true);
+      }
+    };
+
+    initializeDashboard();
   }, []);
 
   const handleTransactionSuccess = () => {

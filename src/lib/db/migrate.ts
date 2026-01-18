@@ -80,5 +80,13 @@ sqlite.exec(`
   CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(date);
 `);
 
+// Add default_account_id column to users table if it doesn't exist
+const userColumns = sqlite.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+const hasDefaultAccountId = userColumns.some(col => col.name === "default_account_id");
+if (!hasDefaultAccountId) {
+  sqlite.exec("ALTER TABLE users ADD COLUMN default_account_id TEXT");
+  console.log("Added default_account_id column to users table");
+}
+
 console.log("Database migrated successfully!");
 sqlite.close();
