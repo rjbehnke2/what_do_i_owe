@@ -10,6 +10,7 @@
     "db:migrate": "npx tsx src/lib/db/migrate.ts"
   },
   "dependencies": {
+    "@libsql/client": "^0.14.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/uuid": "^10.0.0",
